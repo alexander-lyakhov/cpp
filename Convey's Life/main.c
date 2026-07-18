@@ -5,6 +5,10 @@
 #include <time.h>
 #include <windows.h>
 
+#define CURSOR_INIT CONSOLE_CURSOR_INFO cursorInfo; GetConsoleCursorInfo(console.handle, &cursorInfo);
+#define CURSOR_HIDE cursorInfo.bVisible = 0; SetConsoleCursorInfo(console.handle, &cursorInfo);
+#define CURSOR_SHOW cursorInfo.bVisible = 1; SetConsoleCursorInfo(console.handle, &cursorInfo);
+
 #define EMPTY_CELL_CHAR '.'
 #define EMPTY_CELL_ATTR 0x08
 
@@ -189,18 +193,12 @@ void app_render(Console *console)
 
 int main()
 {
-    system("cls");
+	system("cls");
 
 	Console console = Console_create();
 
-	//
-	// Hide cursor
-	//
-	CONSOLE_CURSOR_INFO	 cursorInfo;
-	GetConsoleCursorInfo(console.handle, &cursorInfo);
-
-	cursorInfo.bVisible = 0;
-	SetConsoleCursorInfo(console.handle, &cursorInfo);
+	CURSOR_INIT;
+	CURSOR_HIDE;
 
 	app_init(&console);
 	app_render(&console);
@@ -215,11 +213,7 @@ int main()
 
 	Buff_free(&console.buff);
 
-	//
-	// Show cursor
-	//
-	cursorInfo.bVisible = 1;
-	SetConsoleCursorInfo(console.handle, &cursorInfo);
+	CURSOR_SHOW;
 
 	_getch();
 
