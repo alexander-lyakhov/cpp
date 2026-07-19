@@ -15,6 +15,7 @@
 #define ALIVE_CELL_CHAR '*'
 #define ALIVE_CELL_ATTR 0x0A
 
+
 typedef struct {
 	char* data;
 	char* curr;
@@ -38,9 +39,9 @@ Buff Buff_create(uint16_t size)
 }
 
 // ================================================================================
-// @@@ + Buff_free
+// @@@ + Buff_destroy
 // ================================================================================
-void Buff_free(Buff *buff)
+void Buff_destroy(Buff *buff)
 {
 	free(buff->data);
 
@@ -63,6 +64,8 @@ typedef struct {
 	uint16_t size;
 
 } Console;
+
+void app_render(Console *console);
 
 // ================================================================================
 // @@@ + Console_create
@@ -101,7 +104,7 @@ Console Console_create()
 // ================================================================================
 void app_init(Console *console)
 {
-	srand(time(NULL));
+	// srand(time(NULL));
 
 	for (uint16_t i = 0; i < console->size; i++)
 	{
@@ -113,19 +116,28 @@ void app_init(Console *console)
 }
 
 // =============================================================================
+// @@@ + app_reset
+// =============================================================================
+int app_reset(Console *console)
+{
+	Buff_destroy(&(console->buff));
+	console->buff = Buff_create(console->size);
+	app_init(console);
+
+	return 1;
+}
+
+// =============================================================================
 // @@@ + app_listen
 // =============================================================================
-int app_listen()
+int app_listen(Console *console)
 {
 	if (_kbhit())
 	{
 		char key = _getch();
 		if (key == 27 || ((key | 32) == 'q')) return 0;
+		if ((key | 32) == 'r') return app_reset(console);
 	}
-	/*
-	int key = _getch();
-	if (key = 27 || key == 'q') return 0;
-	*/
 
 	return 1;
 }
@@ -205,6 +217,7 @@ int main()
 {
 	system("cls");
 
+	srand(time(NULL));
 		
 	Console console = Console_create();
 
@@ -212,16 +225,17 @@ int main()
 	CURSOR_HIDE;
 
 	app_init(&console);
-	app_render(&console);
+	// app_render(&console);
 
 	// GameLoop
-	while(app_listen())
+	while (app_listen(&console))
 	{
-		app_update(&console);
 		app_render(&console);
+		app_update(&console);
+
 		Sleep(50);
 	}
-	Buff_free(&console.buff);
+	Buff_destroy(&console.buff);
 	
 	CURSOR_SHOW;
 	
