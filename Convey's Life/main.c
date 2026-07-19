@@ -53,6 +53,7 @@ void Buff_destroy(Buff *buff)
 
 typedef struct {
 	HANDLE handle;
+	CONSOLE_SCREEN_BUFFER_INFO csbi;
 	DWORD written;
 
 	Buff buff;
@@ -64,8 +65,6 @@ typedef struct {
 	uint16_t size;
 
 } Console;
-
-void app_render(Console *console);
 
 // ================================================================================
 // @@@ + Console_create
@@ -89,6 +88,7 @@ Console Console_create()
 
 	return (Console) {
 		.handle = handle,
+		.csbi   = csbi,
 		.buff   = buff,
 		.x      = 0,
 		.y      = 0,
@@ -97,7 +97,6 @@ Console Console_create()
 		.size   = size,
 	};
 }
-
 
 // ================================================================================
 // @@@ + app_init
@@ -132,13 +131,13 @@ int app_reset(Console *console)
 // =============================================================================
 void app_check_resize(Console *console)
 {
-	HANDLE handle = GetStdHandle(STD_OUTPUT_HANDLE);
-	CONSOLE_SCREEN_BUFFER_INFO csbi;
+	GetConsoleScreenBufferInfo(
+		console->handle,
+		&(console->csbi)
+	);
 
-	GetConsoleScreenBufferInfo(handle, &csbi);
-
-	uint16_t width  = csbi.srWindow.Right  + 1;
-	uint16_t height = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+	uint16_t width  = console->csbi.srWindow.Right  + 1;
+	uint16_t height = console->csbi.srWindow.Bottom - console->csbi.srWindow.Top + 1;
 
 	if (console->width != width || console->height != height)
 	{
@@ -235,7 +234,6 @@ void app_render(Console *console)
 	buff->next = p;
 }
 
-
 int main()
 {
 	system("cls");
@@ -248,12 +246,11 @@ int main()
 	CURSOR_HIDE;
 
 	app_init(&console);
-	// app_render(&console);
 
 	// GameLoop
 	while (app_listen(&console))
 	{
-	    app_check_resize(&console);
+		app_check_resize(&console);
 		app_render(&console);
 		app_update(&console);
 
