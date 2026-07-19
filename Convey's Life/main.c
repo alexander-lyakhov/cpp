@@ -128,6 +128,29 @@ int app_reset(Console *console)
 }
 
 // =============================================================================
+// @@@ + app_check_resize
+// =============================================================================
+void app_check_resize(Console *console)
+{
+	HANDLE handle = GetStdHandle(STD_OUTPUT_HANDLE);
+	CONSOLE_SCREEN_BUFFER_INFO csbi;
+
+	GetConsoleScreenBufferInfo(handle, &csbi);
+
+	uint16_t width  = csbi.srWindow.Right  + 1;
+	uint16_t height = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+
+	if (console->width != width || console->height != height)
+	{
+		console->width = width;
+		console->height = height;
+		console->size = width * height;
+
+		app_reset(console);
+	}
+}
+
+// =============================================================================
 // @@@ + app_listen
 // =============================================================================
 int app_listen(Console *console)
@@ -230,6 +253,7 @@ int main()
 	// GameLoop
 	while (app_listen(&console))
 	{
+	    app_check_resize(&console);
 		app_render(&console);
 		app_update(&console);
 
