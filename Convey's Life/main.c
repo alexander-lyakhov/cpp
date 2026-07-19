@@ -103,7 +103,7 @@ Console Console_create()
 // ================================================================================
 void app_init(Console *console)
 {
-	// srand(time(NULL));
+	srand(time(NULL));
 
 	for (uint16_t i = 0; i < console->size; i++)
 	{
@@ -236,10 +236,6 @@ void app_render(Console *console)
 
 int main()
 {
-	system("cls");
-
-	srand(time(NULL));
-		
 	Console console = Console_create();
 
 	CURSOR_INIT;
