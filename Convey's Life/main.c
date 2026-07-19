@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include <stdio.h>    
 #include <stdint.h>
 #include <stdlib.h>
 #include <conio.h>
@@ -16,21 +16,24 @@
 #define ALIVE_CELL_ATTR 0x0A
 
 typedef struct {
-	char* source_chars;
-	char* target_chars;
-	WORD* target_attrs;
+	char* data;
+	char* curr;
+	char* next;
+	WORD* attrs;
 
 } Buff;
 
 // ================================================================================
-// @@@ + Buff_init
+// @@@ + Buff_create
 // ================================================================================
-Buff Buff_init(uint16_t size)
+Buff Buff_create(uint16_t size)
 {
+	char *data = malloc(size * sizeof(WORD) + size * sizeof(char) + size * sizeof(char));
+
 	return (Buff) {
-		.source_chars = malloc(size * sizeof(char)),
-		.target_chars = malloc(size * sizeof(char)),
-		.target_attrs = malloc(size * sizeof(WORD)),
+		.attrs = (WORD*)data,
+		.curr = &data[size * sizeof(WORD)],
+		.next = &data[size * sizeof(WORD) + size * sizeof(char)],
 	};
 }
 
@@ -39,9 +42,12 @@ Buff Buff_init(uint16_t size)
 // ================================================================================
 void Buff_free(Buff *buff)
 {
-	free(buff->source_chars);
-	free(buff->target_chars);
-	free(buff->target_attrs);
+	free(buff->data);
+
+	buff->data  = NULL;
+	buff->curr  = NULL;
+	buff->next  = NULL;
+	buff->attrs = NULL;
 }
 
 typedef struct {
@@ -72,11 +78,11 @@ Console Console_create()
 	uint16_t height = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
 	uint16_t size   = width * height;
 
-	Buff buff = Buff_init(size);
+	Buff buff = Buff_create(size);
 
-	printf("0x%p\n", buff.source_chars);
-	printf("0x%p\n", buff.target_chars);
-	printf("0x%p\n", buff.target_attrs);
+	printf("0x%p\n", buff.curr);
+	printf("0x%p\n", buff.next);
+	printf("0x%p\n", buff.attrs);
 
 	return (Console) {
 		.handle = handle,
@@ -101,8 +107,8 @@ void app_init(Console *console)
 	{
 		uint16_t RND = rand() % 101;
 
-		console->buff.target_chars[i] = RND < 20 ? ALIVE_CELL_CHAR : EMPTY_CELL_CHAR;
-		console->buff.target_attrs[i] = RND < 20 ? ALIVE_CELL_ATTR : EMPTY_CELL_ATTR;
+		console->buff.next[i] = RND < 20 ? ALIVE_CELL_CHAR : EMPTY_CELL_CHAR;
+		console->buff.attrs[i] = RND < 20 ? ALIVE_CELL_ATTR : EMPTY_CELL_ATTR;
 	}
 }
 
@@ -116,6 +122,10 @@ int app_listen()
 		char key = _getch();
 		if (key == 27 || ((key | 32) == 'q')) return 0;
 	}
+	/*
+	int key = _getch();
+	if (key = 27 || key == 'q') return 0;
+	*/
 
 	return 1;
 }
@@ -148,29 +158,29 @@ void app_update(Console *console)
 				
 				int check_index = y * console->width + x;
 
-				if (buff->source_chars[check_index] == ALIVE_CELL_CHAR) n++;
+				if (buff->curr[check_index] == ALIVE_CELL_CHAR) n++;
 			}
 		}
 		
 		switch(n) {
 			// no changes
 			case 2:
-				buff->target_chars[index] = buff->source_chars[index];
-				buff->target_attrs[index] = buff->source_chars[index] == ALIVE_CELL_CHAR ? ALIVE_CELL_ATTR : EMPTY_CELL_ATTR;
+				buff->next[index] = buff->curr[index];
+				buff->attrs[index] = buff->curr[index] == ALIVE_CELL_CHAR ? ALIVE_CELL_ATTR : EMPTY_CELL_ATTR;
 
 				break;
 			
 			// New cell is borning
 			case 3:
-				buff->target_chars[index] = ALIVE_CELL_CHAR;
-				buff->target_attrs[index] = ALIVE_CELL_ATTR;
+				buff->next[index] = ALIVE_CELL_CHAR;
+				buff->attrs[index] = ALIVE_CELL_ATTR;
 
 				break;
 		
 			// Cell dies (n < 2 or n > 3)
 			default:
-				buff->target_chars[index] = EMPTY_CELL_CHAR;
-				buff->target_attrs[index] = EMPTY_CELL_ATTR;
+				buff->next[index] = EMPTY_CELL_CHAR;
+				buff->attrs[index] = EMPTY_CELL_ATTR;
 		}
 	}
 }
@@ -181,13 +191,13 @@ void app_update(Console *console)
 void app_render(Console *console)
 {
 	Buff *buff = &console->buff;
-
-	WriteConsoleOutputCharacter(console->handle, buff->target_chars, console->size, (COORD){0, 0}, &console->written);
-	WriteConsoleOutputAttribute(console->handle, buff->target_attrs, console->size, (COORD){0, 0}, &console->written);
-
-	char *p = buff->source_chars;
-	buff->source_chars = buff->target_chars;
-	buff->target_chars = p;
+	
+	WriteConsoleOutputCharacter(console->handle, buff->next, console->size, (COORD){0, 0}, &console->written);
+	WriteConsoleOutputAttribute(console->handle, buff->attrs, console->size, (COORD){0, 0}, &console->written);
+	
+	char *p = buff->curr;
+	buff->curr = buff->next;
+	buff->next = p;
 }
 
 
@@ -195,6 +205,7 @@ int main()
 {
 	system("cls");
 
+		
 	Console console = Console_create();
 
 	CURSOR_INIT;
@@ -210,12 +221,9 @@ int main()
 		app_render(&console);
 		Sleep(50);
 	}
-
 	Buff_free(&console.buff);
-
+	
 	CURSOR_SHOW;
-
-	_getch();
-
+	
 	return 0;
 }
