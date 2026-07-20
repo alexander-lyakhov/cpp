@@ -117,8 +117,10 @@ void app_init(Console *console)
 // =============================================================================
 // @@@ + app_reset
 // =============================================================================
-int app_reset(Console *console)
+uint16_t app_reset(Console *console)
 {
+	system("cls");
+
 	Buff_destroy(&(console->buff));
 	console->buff = Buff_create(console->size);
 	app_init(console);
@@ -129,7 +131,7 @@ int app_reset(Console *console)
 // =============================================================================
 // @@@ + app_check_resize
 // =============================================================================
-void app_check_resize(Console *console)
+uint16_t app_check_resize(Console *console)
 {
 	GetConsoleScreenBufferInfo(
 		console->handle,
@@ -146,14 +148,20 @@ void app_check_resize(Console *console)
 		console->size = width * height;
 
 		app_reset(console);
+
+		return 1;
 	}
+
+	return 0;
 }
 
 // =============================================================================
 // @@@ + app_listen
 // =============================================================================
-int app_listen(Console *console)
+uint16_t app_listen(Console *console)
 {
+	if (app_check_resize(console)) return 1;
+
 	if (_kbhit())
 	{
 		char key = _getch();
@@ -246,7 +254,6 @@ int main()
 	// GameLoop
 	while (app_listen(&console))
 	{
-		app_check_resize(&console);
 		app_render(&console);
 		app_update(&console);
 
