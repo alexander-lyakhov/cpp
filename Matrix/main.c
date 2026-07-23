@@ -3,6 +3,7 @@
 #include <conio.h>
 #include <windows.h>
 #include <time.h>
+// #include <unistd.h>
 
 #define ATTR_BLACK 0x00
 #define ATTR_WHITE 0x0F
@@ -20,13 +21,18 @@ typedef struct {
 
 	char* buff;
 	WORD* attrs;
-	Drop *drops;
 
 	uint16_t width;
 	uint16_t height;
 	uint16_t size;
 
 } Console;
+
+typedef struct {
+	Console *console;
+	Drop *drops;
+
+} App;
 
 // ================================================================================
 // @@@ + Drop_create
@@ -56,8 +62,6 @@ Console Console_create()
 	uint16_t height = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
 	uint16_t size   = width * height;
 
-	Drop *drops = malloc(sizeof(Drop) * width);
-
 	return (Console) {
 		.handle = handle,
 		.width  = width,
@@ -65,26 +69,53 @@ Console Console_create()
 		.size   = size,
 		.buff   = malloc(size * sizeof(char)),
 		.attrs  = malloc(size * sizeof(WORD)),
-		.drops  = drops,
 	};
 }
 
 // =============================================================================
-// @@@ + Console_destroy
+// @@@ + Console_new
 // =============================================================================
-void Console_destroy(Console *console)
+Console* Console_new()
+{
+	Console *console = malloc(sizeof(Console));
+
+	HANDLE handle = GetStdHandle(STD_OUTPUT_HANDLE);
+	CONSOLE_SCREEN_BUFFER_INFO csbi;
+
+	GetConsoleScreenBufferInfo(handle, &csbi);
+
+	uint16_t width  = csbi.srWindow.Right + 1;
+	uint16_t height = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+	uint16_t size   = width * height;
+
+	console->handle = handle;
+	console->width  = width;
+	console->height = height;
+	console->size   = size;
+	console->buff   = malloc(size * sizeof(char));
+	console->attrs  = malloc(size * sizeof(WORD));
+
+	return console;
+}
+
+// =============================================================================
+// @@@ + Console_free
+// =============================================================================
+void Console_free(Console *console)
 {
 	free(console->buff);
 	free(console->attrs);
-	free(console->drops);
 }
 
-// ================================================================================
-// @@@ + App_init
-// ================================================================================
-void App_init(Console *console)
+// =============================================================================
+// @@@ + App_create
+// =============================================================================
+App App_create()
 {
 	srand(time(NULL));
+
+	Console *console = Console_new();
+	Drop *drops      = malloc(sizeof(Drop) * console->width);
 
 	for (int i = 0; i < console->size; i++)
 		console->buff[i] = rand() % 94 + 32;
@@ -97,40 +128,28 @@ void App_init(Console *console)
 
 	for (int i = 0; i < console->width; i++)
 	{
-		console->drops[i] = Drop_create(console);
-		console->attrs[i] = console->drops[i].attr != ATTR_BLACK
+		drops[i] = Drop_create(console);
+
+		console->attrs[i] = drops[i].attr != ATTR_BLACK
 			? ATTR_WHITE
-			: console->drops[i].attr;
+			: drops[i].attr;
 	}
+
+	return (App) {
+		.console = console,
+		.drops = drops,
+	};
 }
 
-
-// ================================================================================
-// @@@ + render_buff
-// ================================================================================
-void render_buff(Console *console)
+// =============================================================================
+// @@@ + App_destroy
+// =============================================================================
+void App_destroy(App *app)
 {
-	WriteConsoleOutputCharacter(
-		console->handle,
-		console->buff,
-		console->size,
-		(COORD){0, 0},
-		&console->written
-	);
-}
+	Console_free(app->console);
 
-// ================================================================================
-// @@@ + render_attrs
-// ================================================================================
-void render_attrs(Console *console)
-{
-	WriteConsoleOutputAttribute(
-		console->handle,
-		console->attrs,
-		console->size,
-		(COORD){0, 0},
-		&console->written
-	);
+	free(app->drops);
+	free(app->console);
 }
 
 // =============================================================================
@@ -151,8 +170,10 @@ uint16_t App_listen()
 // =============================================================================
 // @@@ + App_update
 // =============================================================================
-void App_update(Console *console)
+void App_update(App *app)
 {
+	Console *console = app->console;
+
 	size_t trg_index = console->size - console->width;
 	size_t src_index = trg_index - console->width;
 
@@ -173,11 +194,11 @@ void App_update(Console *console)
 	//
 	for (int i = 0; i < console->width; i++)
 	{
-		if (!console->drops[i].count--)
-			console->drops[i] = Drop_create(console);
+		if (!app->drops[i].count--)
+			app->drops[i] = Drop_create(console);
 		else
 		{
-			console->attrs[i] = console->drops[i].attr;
+			console->attrs[i] = app->drops[i].attr;
 
 			if (console->attrs[i] != ATTR_BLACK && console->attrs[i + console->width] == ATTR_BLACK)
 				console->attrs[i] = ATTR_WHITE;
@@ -198,29 +219,43 @@ void App_update(Console *console)
 // =============================================================================
 // @@@ + App_render
 // =============================================================================
-void App_render(Console *console)
+void App_render(App *app)
 {
-	render_buff(console);
-	render_attrs(console);
+	Console *console = app->console;
+
+	WriteConsoleOutputCharacter(
+		console->handle,
+		console->buff,
+		console->size,
+		(COORD){0, 0},
+		&console->written
+	);
+
+	WriteConsoleOutputAttribute(
+		console->handle,
+		console->attrs,
+		console->size,
+		(COORD){0, 0},
+		&console->written
+	);
 }
 
 int main()
 {
 	system("cls");
 
-	Console console = Console_create();
-	App_init(&console);
-	App_render(&console);
+	App app = App_create();
 
 	while (App_listen())
 	{
-		App_update(&console);
-		App_render(&console);
+		App_render(&app);
+		App_update(&app);
 
 		Sleep(30);
+		// usleep(30000);
 	}
-
-	Console_destroy(&console);
+	
+	App_destroy(&app);
 
 	return 0;
 }
