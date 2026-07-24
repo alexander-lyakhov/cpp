@@ -34,6 +34,8 @@ typedef struct {
 
 } App;
 
+void App_skip_begin(App *app);
+
 // ================================================================================
 // @@@ + Drop_create
 // ================================================================================
@@ -142,6 +144,44 @@ App App_create()
 }
 
 // =============================================================================
+// @@@ + App_reset
+// =============================================================================
+void App_reset(App *app)
+{
+	free(app->drops);
+	Console_free(app->console);
+
+	system("cls");
+
+	Console *console = app->console;
+	Drop *drops      = malloc(sizeof(Drop) * console->width);
+
+	console->buff   = malloc(console->size * sizeof(char));
+	console->attrs  = malloc(console->size * sizeof(WORD));
+
+	for (int i = 0; i < console->size; i++)
+		console->buff[i] = rand() % 94 + 32;
+
+	memset(
+		console->attrs,
+		ATTR_BLACK,
+		console->size * sizeof(*console->attrs)
+	);
+
+	for (int i = 0; i < console->width; i++)
+	{
+		drops[i] = Drop_create(console);
+
+		console->attrs[i] = drops[i].attr != ATTR_BLACK
+			? ATTR_WHITE
+			: drops[i].attr;
+	}
+
+	app->drops = drops;
+	App_skip_begin(app);
+}
+
+// =============================================================================
 // @@@ + App_destroy
 // =============================================================================
 void App_destroy(App *app)
@@ -153,15 +193,42 @@ void App_destroy(App *app)
 }
 
 // =============================================================================
+// @@@ + App_check_resize
+// =============================================================================
+uint16_t App_check_resize(App *app)
+{
+	HANDLE handle = GetStdHandle(STD_OUTPUT_HANDLE);
+	CONSOLE_SCREEN_BUFFER_INFO csbi;
+
+	GetConsoleScreenBufferInfo(handle, &csbi);
+
+	uint16_t width  = csbi.srWindow.Right  + 1;
+	uint16_t height = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+
+	if (app->console->width != width || app->console->height != height)
+	{
+		app->console->width  = width;
+		app->console->height = height;
+		app->console->size   = width * height;
+
+		App_reset(app);
+
+		return 1;
+	}
+
+	return 0;
+}
+
+// =============================================================================
 // @@@ + App_listen
 // =============================================================================
-uint16_t App_listen()
+uint16_t App_listen(App *app)
 {
-	int key = 0;
+	if (App_check_resize(app)) return 1;
 
 	if (kbhit())
 	{
-		key = getch();
+		int key = getch();
 		if (key == 27 || key == 'q') return 0;
 	}
 	return 1;
@@ -257,7 +324,7 @@ int main()
 
 	App_skip_begin(&app);
 
-	while (App_listen())
+	while (App_listen(&app))
 	{
 		App_render(&app);
 		App_update(&app);
